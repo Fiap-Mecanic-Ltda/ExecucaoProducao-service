@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.HttpOverrides;
 using ExecucaoService.API.Extensions;
 using ExecucaoService.API.Middlewares;
@@ -13,7 +14,9 @@ if (builder.Environment.IsDevelopment())
     builder.Configuration.AddUserSecrets<Program>(optional: true);
 }
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    // Enums como texto ("Peca", "EmDiagnostico"), igual ao contrato das mensagens; números também são aceitos.
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
 // Rotas em minúsculas: o roteamento do API Gateway diferencia maiúsculas, então Swagger,
 // Postman e as rotas do gateway precisam usar exatamente a mesma grafia.
@@ -34,6 +37,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerWithAuth();
 
 builder.Services.AddDatabase(builder.Configuration);
+builder.Services.AddDependencyInjection();
 builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddAuthorization();
 
@@ -41,6 +45,7 @@ var app = builder.Build();
 
 app.UseForwardedHeaders();
 app.UseCorrelationId();
+app.UseTratamentoDeErros();
 
 app.UseSwagger();
 app.UseSwaggerUI();

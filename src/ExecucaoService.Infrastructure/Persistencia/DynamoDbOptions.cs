@@ -18,6 +18,12 @@ namespace ExecucaoService.Infrastructure.Persistencia
         /// <summary>Prefixo dos nomes das tabelas (ADR-003): execucao-ordens, execucao-estoque…</summary>
         public string PrefixoTabelas { get; set; } = "execucao";
 
+        /// <summary>
+        /// Cria as tabelas que faltarem ao subir a API. Só para o DynamoDB Local; na AWS as
+        /// tabelas vêm do Terraform do ExecucaoProducao-InfraSGBD.
+        /// </summary>
+        public bool CriarTabelas { get; set; }
+
         public string Tabela(string nome) => $"{PrefixoTabelas}-{nome}";
     }
 }

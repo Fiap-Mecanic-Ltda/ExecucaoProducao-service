@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Compile Include="..\Compartilhado\**\*.cs" Link="Compartilhado\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

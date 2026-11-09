@@ -40,6 +40,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - DynamoDb__ServiceUrl=http://dynamodb:8000
+      - DynamoDb__CriarTabelas=true
       # O DynamoDB Local aceita qualquer credencial, mas o SDK exige que exista uma.
       - AWS_ACCESS_KEY_ID=local
       - AWS_SECRET_ACCESS_KEY=local
