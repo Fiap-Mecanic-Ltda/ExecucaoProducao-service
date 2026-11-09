@@ -121,6 +121,25 @@ conclui o diagnóstico (com o primeiro serviço ativo do catálogo e as peças d
 descrição do problema, a `Execucao:ValorPecaAutomatico` cada), inicia e finaliza o reparo. Uma
 peça citada sem saldo vira `DiagnosticoFalhou`.
 
+## Esteira (CI/CD)
+
+`.github/workflows/ci.yml` roda build, testes (com o DynamoDB Local como container de serviço),
+gate de cobertura, SonarCloud e build da imagem em todo PR. No push na `main`, com a Repository
+Variable `PUBLICAR_AWS=true`, ela também publica a imagem `mechanicltda-execucao` no ECR (tags
+SHA e `latest`) e dispara o deploy no `ExecucaoProducao-InfraKubernete` (`repository_dispatch`
+do tipo `imagem-publicada`). Secrets do repositório:
+
+| Secret | Uso |
+|---|---|
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Só para conferir se a role de OIDC já existe (mesma chave do terraform-deployer usada no MechanicLtda) |
+| `AWS_ROLE_ARN` | Role `mechanicltda-prod-execucao-github-actions`, criada pelo Terraform do ExecucaoProducao-InfraKubernete |
+| `EXECUCAO_INFRA_DISPATCH_TOKEN` | Token fine-grained com Contents read/write só no ExecucaoProducao-InfraKubernete. Sem ele, a imagem é publicada e o deploy fica manual |
+| `SONAR_TOKEN` | Opcional por enquanto: sem ele, a análise é pulada com aviso |
+
+A publicação fica travada enquanto `PUBLICAR_AWS` não for `true` (Settings → Secrets and
+variables → Actions → Variables): o push na `main` só builda e testa. Com a variável ligada mas
+antes do primeiro `terraform apply` da infra, o push na `main` pula a publicação com um aviso.
+
 ## Testes
 
 | Projeto | O que cobre |
