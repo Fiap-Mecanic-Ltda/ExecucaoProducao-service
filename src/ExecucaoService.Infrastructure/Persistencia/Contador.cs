@@ -25,5 +25,25 @@ namespace ExecucaoService.Infrastructure.Persistencia
 
             return int.Parse(resposta.Attributes["valor"].N, CultureInfo.InvariantCulture);
         }
+
+        /// <summary>Leva o contador até <paramref name="minimo"/>, se ele estiver abaixo. Nunca diminui.</summary>
+        public static async Task GarantirMinimoAsync(IAmazonDynamoDB dynamo, string tabela, int minimo, CancellationToken ct)
+        {
+            try
+            {
+                await dynamo.UpdateItemAsync(new UpdateItemRequest
+                {
+                    TableName                 = tabela,
+                    Key                       = new() { [Atributos.Pk] = Atributos.S(Chave) },
+                    UpdateExpression          = "SET valor = :minimo",
+                    ConditionExpression       = "attribute_not_exists(valor) OR valor < :minimo",
+                    ExpressionAttributeValues = new() { [":minimo"] = Atributos.N(minimo) }
+                }, ct);
+            }
+            catch (ConditionalCheckFailedException)
+            {
+                // O contador já está no mínimo ou acima: nada a fazer.
+            }
+        }
     }
 }

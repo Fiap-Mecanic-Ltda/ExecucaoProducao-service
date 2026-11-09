@@ -16,6 +16,34 @@ execução e comunica a finalização.
 Repositórios relacionados: `ExecucaoProducao-InfraKubernete` (deploy no k3s) e
 `ExecucaoProducao-InfraSGBD` (tabelas DynamoDB).
 
+## Arquitetura
+
+```mermaid
+flowchart LR
+    cliente([Funcionário / Web]) -->|JWT do MechanicLtda| gw[API Gateway + ALB]
+    gw -->|/api/execucao, /api/estoque,<br/>/api/servicos-oficina| api[ExecucaoProducao-service]
+    gw -->|/api/ordemservico| os[OS Service]
+    gw -->|clientes, veículos, login| mono[MechanicLtda]
+
+    subgraph Saga [RabbitMQ: Saga orquestrada pelo OS Service]
+        direction TB
+        cmd[[IniciarDiagnostico<br/>IniciarExecucao<br/>LiberarReservaEstoque]]
+        evt[[DiagnosticoConcluido / DiagnosticoFalhou<br/>ExecucaoIniciada / ExecucaoFinalizada<br/>ExecucaoFalhou]]
+    end
+
+    os -- comandos --> cmd --> api
+    api -- eventos --> evt --> os
+    os <-->|orçamento e pagamento| billing[Billing]
+
+    api --> ddb[(DynamoDB<br/>execucao-ordens, -estoque,<br/>-servicos, -mensagens)]
+    api -. APM e eventos .-> nr[New Relic]
+```
+
+A Execução é dona da fila de execução, do diagnóstico, do estoque e do catálogo de serviços. Ela
+não chama o OS Service nem o Billing: recebe comandos e responde com eventos. O estoque é reservado
+no diagnóstico, baixado quando o pagamento libera a execução e devolvido quando o orçamento é
+recusado ou o diagnóstico falha (compensação da Saga).
+
 ## Estrutura
 
 Mesmas camadas do MechanicLtda e do OS Service:
@@ -34,7 +62,8 @@ ExecucaoProducao-service/
 │   ├── ExecucaoService.UnitTests       # Domínio, aplicação, consumidores (test harness do MassTransit) e bootstrap
 │   ├── ExecucaoService.API.Tests       # API em memória (WebApplicationFactory)
 │   └── ExecucaoService.IntegrationTests # Repositórios contra o DynamoDB Local
-├── docs/                               # Contratos da Saga e ADRs
+├── tools/ExecucaoService.Carga         # Carga inicial do estoque e do catálogo vindos do MechanicLtda
+├── docs/                               # Contratos da Saga, ADRs e coleção do Postman
 ├── docker-compose.yml                  # DynamoDB Local + RabbitMQ + API
 └── .github/workflows/ci.yml            # Build, testes e build da imagem
 ```
@@ -92,6 +121,35 @@ Todas exigem o JWT do MechanicLtda com papel `Administrador` ou `Funcionario`.
 
 Erros seguem o envelope `{ "success": false, "errors": [...] }`: regra de negócio e estoque
 insuficiente respondem 400, recurso inexistente 404 e conflito de gravação concorrente 409.
+
+## Postman
+
+[`docs/postman`](docs/postman) tem a coleção e um ambiente local. A coleção faz login no
+MechanicLtda e percorre o estoque, o catálogo, o fluxo completo da execução e as duas cenas de
+compensação: a peça sem saldo, que barra o diagnóstico, e o orçamento recusado, que devolve a
+reserva. Cada execução cria OS novas, então ela pode rodar várias vezes seguidas.
+
+```bash
+npx newman run docs/postman/ExecucaoProducao-Fase4.postman_collection.json \
+  -e docs/postman/ExecucaoProducao-local.postman_environment.json --env-var senhaAdmin=<senha>
+```
+
+## Carga inicial do estoque
+
+`tools/ExecucaoService.Carga` lê o estoque e os serviços da API do MechanicLtda e os grava nas
+tabelas da Execução com os mesmos ids. Os contadores ficam acima do maior id carregado. Rodar de
+novo não duplica nem sobrescreve nada, porque um id que já existe fica como está. Os itens
+chegam sem reservas.
+
+```bash
+MONOLITO_URL=http://localhost:8080 MONOLITO_TOKEN=<jwt de Administrador> \
+DynamoDb__ServiceUrl=http://localhost:8000 AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local \
+  dotnet run --project tools/ExecucaoService.Carga
+```
+
+Na AWS, sem `DynamoDb__ServiceUrl`, valem `DynamoDb__Regiao`, `DynamoDb__PrefixoTabelas` e as
+credenciais padrão do SDK. A carga roda uma vez na virada, antes de as rotas de estoque saírem do
+monolito.
 
 ## Mensageria (Saga)
 
@@ -162,6 +220,17 @@ DYNAMODB_SERVICE_URL=http://localhost:8000 \
 reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coverage/relatorio -reporttypes:"Cobertura;Html"
 python3 scripts/verificar-cobertura.py coverage/relatorio/Cobertura.xml 80
 ```
+
+Última execução local (09/11/2026), com o DynamoDB Local no ar:
+
+| Projeto | Testes |
+|---|---|
+| UnitTests | 140 passando |
+| API.Tests (com 5 cenários BDD) | 22 passando |
+| IntegrationTests | 15 passando |
+| **Cobertura** | **92,2% das linhas e 83% dos ramos** (mínimo exigido: 80% das linhas) |
+
+A coleção do Postman também passou contra a API local: 31 requisições e 55 asserções.
 
 Sem `DYNAMODB_SERVICE_URL`, os testes de integração aparecem como ignorados. A CI sobe o
 DynamoDB Local como container de serviço, exige **80% de cobertura de linhas** (hoje 92%) e roda
