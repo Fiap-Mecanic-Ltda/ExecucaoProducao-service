@@ -1,0 +1,1268 @@
+{
+  "info": {
+    "_postman_id": "9b22ae7e-5c52-585b-8c6d-5ca6dad2f50a",
+    "name": "ExecucaoProducao · Fase 4",
+    "description": "Coleção do microsserviço de Execução e Produção.\n\n1. Importe a coleção e o ambiente `ExecucaoProducao-local.postman_environment.json`.\n2. Suba o MechanicLtda (login) e a Execução (`docker compose up -d`).\n3. Rode as pastas na ordem (Collection Runner). Os testes guardam token e ids nas variáveis da coleção, e cada execução usa OS novas.\n\nNa AWS, `baseUrl` e `mechanicUrl` passam a ser a URL do API Gateway, depois da virada.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "00 · Saúde",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 · Autenticação (MechanicLtda)",
+      "description": "Os tokens continuam sendo emitidos pelo MechanicLtda (e pela Lambda na AWS). A Execução só valida o JWT com a mesma chave.",
+      "item": [
+        {
+          "name": "Login do funcionário",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{mechanicUrl}}/api/auth/login",
+              "host": [
+                "{{mechanicUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{emailAdmin}}\",\n  \"senha\": \"{{senhaAdmin}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Na AWS, troque `mechanicUrl` pela URL do API Gateway e a rota por `/auth/login` (Lambda)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "const corpo = pm.response.json();",
+                  "pm.test(\"Token recebido\", () => pm.expect(corpo.token).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token\", corpo.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sem token: 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/estoque",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "estoque"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 · Estoque",
+      "item": [
+        {
+          "name": "Cadastra peça",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/estoque",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "estoque"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Pastilha de freio (Postman)\",\n  \"tipo\": \"Peca\",\n  \"quantidadeAtual\": 10,\n  \"quantidadeMinima\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Disponível = 10\", () => pm.expect(pm.response.json().quantidadeDisponivel).to.eql(10));",
+                  "pm.collectionVariables.set(\"pecaId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cadastra peça sem saldo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/estoque",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "estoque"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Disco de freio (Postman)\",\n  \"tipo\": \"Peca\",\n  \"quantidadeAtual\": 0,\n  \"quantidadeMinima\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Já nasce em baixo estoque\", () => pm.expect(pm.response.json().baixoEstoque).to.eql(true));",
+                  "pm.collectionVariables.set(\"pecaSemSaldoId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Lista o estoque",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/estoque",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "estoque"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Lista com a peça\", () => pm.expect(pm.response.json().map(e => e.id)).to.include(Number(pm.collectionVariables.get(\"pecaId\"))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Lista só peças",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/estoque/tipo/Peca",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "estoque",
+                "tipo",
+                "Peca"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Só peças\", () => pm.response.json().forEach(e => pm.expect(e.tipo).to.eql(\"Peca\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reposição",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/estoque/{{pecaId}}/reposicao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "estoque",
+                "{{pecaId}}",
+                "reposicao"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantidade\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Atual = 15\", () => pm.expect(pm.response.json().quantidadeAtual).to.eql(15));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atualiza cadastro",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/estoque/{{pecaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "estoque",
+                "{{pecaId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Pastilha de freio dianteira (Postman)\",\n  \"tipo\": \"Peca\",\n  \"quantidadeMinima\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Mínimo = 3\", () => pm.expect(pm.response.json().quantidadeMinima).to.eql(3));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Item inexistente: 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/estoque/999999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "estoque",
+                "999999999"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 · Serviços da oficina",
+      "item": [
+        {
+          "name": "Cadastra serviço",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/servicos-oficina",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "servicos-oficina"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Troca de pastilhas (Postman)\",\n  \"descricao\": \"Eixo dianteiro\",\n  \"valorBase\": 120.0,\n  \"ativo\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"servicoId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Lista ativos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/servicos-oficina/ativos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "servicos-oficina",
+                "ativos"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Serviço ativo listado\", () => pm.expect(pm.response.json().map(s => s.id)).to.include(Number(pm.collectionVariables.get(\"servicoId\"))));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 · Fluxo da execução (manual)",
+      "description": "Mesmo caminho que a Saga faz pelas filas, pelas rotas manuais: entrada (IniciarDiagnostico), diagnóstico com reserva, liberação (IniciarExecucao) com baixa, reparo e finalização. Com a mensageria ligada, cada passo também publica o evento da Saga.",
+      "item": [
+        {
+          "name": "Entrada na fila de diagnóstico",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/execucao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "execucao"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ordemServicoId\": {{osId}},\n  \"descricaoProblema\": \"Barulho ao frear (Postman)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"status = AguardandoDiagnostico\", () => pm.expect(pm.response.json().status).to.eql(\"AguardandoDiagnostico\"));"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"osId\", 100000 + Math.floor(Math.random() * 800000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mecânico inicia o diagnóstico",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/execucao/{{osId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "execucao",
+                "{{osId}}",
+                "iniciar-diagnostico"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"status = EmDiagnostico\", () => pm.expect(pm.response.json().status).to.eql(\"EmDiagnostico\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registra o diagnóstico (reserva)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/execucao/{{osId}}/diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "execucao",
+                "{{osId}}",
+                "diagnostico"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itens\": [\n    {\n      \"tipo\": \"Servico\",\n      \"servicoOficinaId\": {{servicoId}},\n      \"quantidade\": 1\n    },\n    {\n      \"tipo\": \"Peca\",\n      \"estoqueId\": {{pecaId}},\n      \"quantidade\": 2,\n      \"valorUnitario\": 150.0\n    }\n  ],\n  \"observacao\": \"Pastilhas no limite\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"status = DiagnosticoConcluido\", () => pm.expect(pm.response.json().status).to.eql(\"DiagnosticoConcluido\"));",
+                  "pm.test(\"Total = serviço + 2 peças\", () => pm.expect(pm.response.json().valorTotalItens).to.eql(420));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Estoque reservado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/estoque/{{pecaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "estoque",
+                "{{pecaId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Reservada = 2\", () => pm.expect(pm.response.json().quantidadeReservada).to.eql(2));",
+                  "pm.test(\"Disponível = 13\", () => pm.expect(pm.response.json().quantidadeDisponivel).to.eql(13));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pagamento confirmado (libera a execução)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/execucao/{{osId}}/liberar-execucao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "execucao",
+                "{{osId}}",
+                "liberar-execucao"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"status = NaFila\", () => pm.expect(pm.response.json().status).to.eql(\"NaFila\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Estoque baixado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/estoque/{{pecaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "estoque",
+                "{{pecaId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Atual = 13\", () => pm.expect(pm.response.json().quantidadeAtual).to.eql(13));",
+                  "pm.test(\"Reservada = 0\", () => pm.expect(pm.response.json().quantidadeReservada).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Inicia o reparo",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/execucao/{{osId}}/iniciar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "execucao",
+                "{{osId}}",
+                "iniciar"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"status = EmExecucao\", () => pm.expect(pm.response.json().status).to.eql(\"EmExecucao\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Finaliza o reparo",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/execucao/{{osId}}/finalizar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "execucao",
+                "{{osId}}",
+                "finalizar"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"observacao\": \"Pastilhas trocadas\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"status = Finalizada\", () => pm.expect(pm.response.json().status).to.eql(\"Finalizada\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consulta com histórico",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/execucao/{{osId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "execucao",
+                "{{osId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Histórico completo\", () => pm.expect(pm.response.json().historico.length).to.be.at.least(6));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fila de execução",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/execucao/fila",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "execucao",
+                "fila"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 · Falta de estoque e compensação",
+      "description": "Cenas do vídeo: a peça sem saldo barra o diagnóstico (a Saga recebe DiagnosticoFalhou) e o orçamento recusado devolve a reserva (LiberarReservaEstoque).",
+      "item": [
+        {
+          "name": "Entrada da OS sem peça",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/execucao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "execucao"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ordemServicoId\": {{osSemPecaId}},\n  \"descricaoProblema\": \"Disco empenado (Postman)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"osSemPecaId\", 100000 + Math.floor(Math.random() * 800000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Inicia o diagnóstico",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/execucao/{{osSemPecaId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "execucao",
+                "{{osSemPecaId}}",
+                "iniciar-diagnostico"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Diagnóstico com peça sem saldo: 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/execucao/{{osSemPecaId}}/diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "execucao",
+                "{{osSemPecaId}}",
+                "diagnostico"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itens\": [\n    {\n      \"tipo\": \"Peca\",\n      \"estoqueId\": {{pecaSemSaldoId}},\n      \"quantidade\": 1,\n      \"valorUnitario\": 300.0\n    }\n  ],\n  \"observacao\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Erro de estoque\", () => pm.expect(pm.response.json().errors.join(\" \")).to.match(/estoque|saldo|dispon/i));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registra a falha do diagnóstico",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/execucao/{{osSemPecaId}}/falha-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "execucao",
+                "{{osSemPecaId}}",
+                "falha-diagnostico"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Disco de freio em falta\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"status = Cancelada\", () => pm.expect(pm.response.json().status).to.eql(\"Cancelada\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Entrada da OS recusada",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/execucao",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "execucao"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ordemServicoId\": {{osRecusadaId}},\n  \"descricaoProblema\": \"Revisão (Postman)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"osRecusadaId\", 100000 + Math.floor(Math.random() * 800000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Inicia o diagnóstico ",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/execucao/{{osRecusadaId}}/iniciar-diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "execucao",
+                "{{osRecusadaId}}",
+                "iniciar-diagnostico"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Diagnóstico reserva 2 peças",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/execucao/{{osRecusadaId}}/diagnostico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "execucao",
+                "{{osRecusadaId}}",
+                "diagnostico"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"itens\": [\n    {\n      \"tipo\": \"Peca\",\n      \"estoqueId\": {{pecaId}},\n      \"quantidade\": 2,\n      \"valorUnitario\": 150.0\n    }\n  ],\n  \"observacao\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Orçamento recusado: cancela e devolve",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/execucao/{{osRecusadaId}}/cancelar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "execucao",
+                "{{osRecusadaId}}",
+                "cancelar"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Cliente recusou o orçamento\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"status = Cancelada\", () => pm.expect(pm.response.json().status).to.eql(\"Cancelada\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reserva devolvida",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/estoque/{{pecaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "estoque",
+                "{{pecaId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Reservada = 0\", () => pm.expect(pm.response.json().quantidadeReservada).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "pecaId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "pecaSemSaldoId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "servicoId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "osId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "osSemPecaId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "osRecusadaId",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
