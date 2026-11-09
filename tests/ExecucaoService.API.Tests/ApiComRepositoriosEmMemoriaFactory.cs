@@ -21,6 +21,7 @@ namespace ExecucaoService.API.Tests
         public ServicosEmMemoria Servicos { get; } = new();
         public ExecucoesEmMemoria Execucoes { get; } = new();
         public RelogioFixo Relogio { get; } = new();
+        public RegistroMensagensEmMemoria Mensagens { get; } = new();
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -31,11 +32,13 @@ namespace ExecucaoService.API.Tests
                 services.RemoveAll<IServicoOficinaRepository>();
                 services.RemoveAll<IExecucaoRepository>();
                 services.RemoveAll<IRelogio>();
+                services.RemoveAll<IRegistroMensagens>();
 
                 services.AddSingleton<IEstoqueRepository>(Estoque);
                 services.AddSingleton<IServicoOficinaRepository>(Servicos);
                 services.AddSingleton<IExecucaoRepository>(Execucoes);
                 services.AddSingleton<IRelogio>(Relogio);
+                services.AddSingleton<IRegistroMensagens>(Mensagens);
             });
         }
 

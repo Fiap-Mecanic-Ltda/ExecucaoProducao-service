@@ -19,3 +19,6 @@ coverage-report/
 appsettings.*.json
 secrets.json
 .env
+
+# Codigo gerado pelo Reqnroll a partir dos .feature
+*.feature.cs
