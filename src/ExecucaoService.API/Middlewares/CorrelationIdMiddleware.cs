@@ -1,10 +1,12 @@
+using ExecucaoService.Application.Mensageria;
+
 namespace ExecucaoService.API.Middlewares
 {
     /// <summary>
     /// Correlaciona a requisição com o registro do API Gateway. O gateway repassa o seu
     /// requestId no header X-Correlation-Id; aqui esse id entra no escopo de log (aparece em
     /// todas as linhas da requisição) e volta na resposta. Sem o header, um id novo é gerado.
-    /// Na etapa da Saga, o mesmo id segue nos cabeçalhos das mensagens.
+    /// O mesmo id segue no cabeçalho x-correlation-id dos eventos publicados.
     /// </summary>
     public class CorrelationIdMiddleware
     {
@@ -31,6 +33,7 @@ namespace ExecucaoService.API.Middlewares
                 correlationId = Guid.NewGuid().ToString("n");
 
             context.Items[HeaderName] = correlationId;
+            ContextoCorrelacao.CorrelationIdRequisicao = correlationId;
             context.TraceIdentifier   = correlationId;
 
             context.Response.OnStarting(() =>

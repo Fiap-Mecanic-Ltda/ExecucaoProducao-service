@@ -48,6 +48,11 @@ services:
       - RabbitMq__Host=rabbitmq
       - RabbitMq__Usuario=${RABBITMQ_USER}
       - RabbitMq__Senha=${RABBITMQ_PASSWORD}
+      # Consumidores da Saga ligados. Sem o OS Service no mesmo RabbitMQ, nada chega nas filas
+      # e a API funciona pelas rotas manuais.
+      - Mensageria__Habilitada=${MENSAGERIA_HABILITADA:-true}
+      # Demonstração: diagnóstico e reparo avançam sozinhos (MODO_AUTOMATICO=true no .env).
+      - Execucao__ModoAutomatico=${MODO_AUTOMATICO:-false}
     depends_on:
       dynamodb:
         condition: service_started

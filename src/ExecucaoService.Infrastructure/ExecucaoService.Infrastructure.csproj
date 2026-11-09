@@ -2,6 +2,8 @@
 
   <ItemGroup>
     <PackageReference Include="AWSSDK.DynamoDBv2" Version="4.0.109.3" />
+    <PackageReference Include="MassTransit" Version="8.5.12" />
+    <PackageReference Include="NewRelic.Agent.Api" Version="10.54.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.15" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.15" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.15" />

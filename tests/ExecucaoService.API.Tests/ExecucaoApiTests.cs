@@ -116,5 +116,19 @@ namespace ExecucaoService.API.Tests
 
             Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
         }
+    
+        [Fact]
+        public async Task Falha_de_diagnostico_cancela_a_os()
+        {
+            const int os = 505;
+            await _client.PostAsJsonAsync("/api/execucao", new { ordemServicoId = os });
+
+            Assert.Equal(HttpStatusCode.BadRequest, (await _client.PatchAsJsonAsync($"/api/execucao/{os}/falha-diagnostico", new { motivo = "" })).StatusCode);
+
+            var resposta = await _client.PatchAsJsonAsync($"/api/execucao/{os}/falha-diagnostico", new { motivo = "Peca fora de linha" });
+
+            Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+            Assert.Equal("Cancelada", (await Corpo(resposta)).GetProperty("status").GetString());
+        }
     }
 }

@@ -97,6 +97,12 @@ namespace ExecucaoService.API.ViewModels
         public string? Observacao { get; set; }
     }
 
+    public class FalhaDiagnosticoViewModel
+    {
+        [Required, MaxLength(1000)]
+        public string Motivo { get; set; } = string.Empty;
+    }
+
     public class CancelamentoViewModel
     {
         [MaxLength(1000)]
