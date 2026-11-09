@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ExecucaoService.Application\ExecucaoService.Application.csproj" />
+    <ProjectReference Include="..\ExecucaoService.Infrastructure\ExecucaoService.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

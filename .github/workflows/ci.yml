@@ -1,0 +1,60 @@
+name: Esteira de CI/CD - Execucao Service
+
+# Etapa atual: build, testes e build da imagem em todo PR e push nas branches de trabalho.
+# Próximas etapas do plano: cobertura mínima de 80%, SonarCloud, push da imagem no ECR e
+# disparo do deploy no repositório ExecucaoProducao-InfraKubernete (só na main).
+on:
+  push:
+    branches: [main, desenvolvimento, homologacao]
+  pull_request:
+    branches: [main, desenvolvimento, homologacao]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: "9.0.x"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build e testes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore ExecucaoService.sln
+
+      - name: Build
+        run: dotnet build ExecucaoService.sln --configuration Release --no-restore
+
+      - name: Testes automatizados
+        run: >
+          dotnet test ExecucaoService.sln --configuration Release --no-build --verbosity normal
+          --settings coverlet.runsettings --collect:"XPlat Code Coverage" --results-directory coverage
+
+      - name: Publica os resultados de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura
+          path: coverage/**/coverage.cobertura.xml
+          if-no-files-found: ignore
+
+  docker-build:
+    name: Build da imagem Docker
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build da imagem (sem push nesta etapa)
+        run: docker build -f src/ExecucaoService.API/Dockerfile -t execucao-service:${{ github.sha }} .

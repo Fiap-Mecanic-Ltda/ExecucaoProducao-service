@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.DynamoDBv2" Version="4.0.109.3" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.15" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ExecucaoService.Domain\ExecucaoService.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

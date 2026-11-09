@@ -1,0 +1,21 @@
+# Compilacao
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+
+# IDEs e arquivos locais
+.vs/
+.vscode/
+.idea/
+*.csproj.user
+
+# Resultados de teste e cobertura
+TestResults/
+coverage/
+coverage-report/
+
+# Segredos e configuracao local
+appsettings.*.json
+secrets.json
+.env
