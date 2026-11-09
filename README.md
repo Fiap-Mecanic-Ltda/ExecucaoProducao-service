@@ -15,3 +15,57 @@ execução e comunica a finalização.
 
 Repositórios relacionados: `ExecucaoProducao-InfraKubernete` (deploy no k3s) e
 `ExecucaoProducao-InfraSGBD` (tabelas DynamoDB).
+
+## Estrutura
+
+Mesmas camadas do MechanicLtda e do OS Service:
+
+```text
+ExecucaoProducao-service/
+├── src/
+│   ├── ExecucaoService.API             # Host REST: controllers, Swagger, JWT, CorrelationId, /health
+│   ├── ExecucaoService.Bootstrap       # Composition root: DynamoDB, logs, roles
+│   ├── ExecucaoService.Application     # Casos de uso e segurança
+│   ├── ExecucaoService.Domain          # Entidades, enums e regras (status da execução)
+│   └── ExecucaoService.Infrastructure  # DynamoDB (tabelas execucao-*) e integrações
+├── tests/
+│   ├── ExecucaoService.UnitTests       # Domínio, aplicação e bootstrap (xUnit + Moq)
+│   └── ExecucaoService.API.Tests       # API em memória (WebApplicationFactory)
+├── docs/                               # Contratos da Saga e ADRs
+├── docker-compose.yml                  # DynamoDB Local + RabbitMQ + API
+└── .github/workflows/ci.yml            # Build, testes e build da imagem
+```
+
+## Rodando localmente
+
+Pré-requisitos: .NET 9 SDK e Docker.
+
+```bash
+cp .env.example .env            # ajuste a senha do RabbitMQ e a chave JWT
+docker compose up -d --build
+curl http://localhost:8082/health
+```
+
+| Serviço | Endereço |
+|---|---|
+| API e Swagger | http://localhost:8082/swagger |
+| Painel do RabbitMQ | http://localhost:15673 (usuário e senha do `.env`) |
+| DynamoDB Local | http://localhost:8000 |
+
+As portas não conflitam com o docker-compose do OS Service, então os dois sobem juntos. Para a
+API aceitar os tokens do resto do sistema, `JWT_SECRET_KEY` precisa ser a mesma chave do
+MechanicLtda e da Lambda de autenticação.
+
+Rodando sem Docker (com o DynamoDB Local do compose no ar):
+
+```bash
+dotnet user-secrets set JWT_SECRET_KEY "<chave>" --project src/ExecucaoService.API
+DynamoDb__ServiceUrl=http://localhost:8000 AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local \
+  dotnet run --project src/ExecucaoService.API     # http://localhost:5080/swagger
+```
+
+## Testes
+
+```bash
+dotnet test ExecucaoService.sln --settings coverlet.runsettings --collect:"XPlat Code Coverage"
+```

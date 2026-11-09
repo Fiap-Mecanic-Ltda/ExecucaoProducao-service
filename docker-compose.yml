@@ -1,0 +1,63 @@
+# Ambiente local do Execução Service: DynamoDB Local (banco próprio do serviço), RabbitMQ
+# (mensageria da Saga) e a API. Antes de subir: cp .env.example .env
+#
+# As portas do host não conflitam com o docker-compose do OS Service (RabbitMQ 5672/15672,
+# API 8081), então os dois podem rodar ao mesmo tempo.
+services:
+  dynamodb:
+    image: amazon/dynamodb-local:latest
+    container_name: execucao-dynamodb
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/home/dynamodblocal/data"]
+    working_dir: /home/dynamodblocal
+    user: root
+    ports:
+      - "8000:8000"
+    volumes:
+      - execucao_dynamodb_data:/home/dynamodblocal/data
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: execucao-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      - "5673:5672"     # AMQP
+      - "15673:15672"   # painel de gestão: http://localhost:15673
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build:
+      context: .
+      dockerfile: src/ExecucaoService.API/Dockerfile
+    container_name: execucao-api
+    ports:
+      - "8082:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DynamoDb__ServiceUrl=http://dynamodb:8000
+      # O DynamoDB Local aceita qualquer credencial, mas o SDK exige que exista uma.
+      - AWS_ACCESS_KEY_ID=local
+      - AWS_SECRET_ACCESS_KEY=local
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - RabbitMq__Host=rabbitmq
+      - RabbitMq__Usuario=${RABBITMQ_USER}
+      - RabbitMq__Senha=${RABBITMQ_PASSWORD}
+    depends_on:
+      dynamodb:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+volumes:
+  execucao_dynamodb_data:
