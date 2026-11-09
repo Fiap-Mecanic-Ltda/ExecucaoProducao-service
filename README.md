@@ -123,14 +123,28 @@ peça citada sem saldo vira `DiagnosticoFalhou`.
 
 ## Testes
 
-```bash
-dotnet test ExecucaoService.sln --settings coverlet.runsettings --collect:"XPlat Code Coverage"
-```
+| Projeto | O que cobre |
+|---|---|
+| `tests/ExecucaoService.UnitTests` | Domínio, casos de uso (com repositórios em memória e Moq), comandos da Saga, consumidores com o test harness do MassTransit e o modo automático |
+| `tests/ExecucaoService.API.Tests` | API em memória (rotas, JWT, erros) e os cenários BDD com Reqnroll em `Bdd/` |
+| `tests/ExecucaoService.IntegrationTests` | Repositórios contra o DynamoDB Local |
 
-Os testes de integração rodam contra um DynamoDB Local, com tabelas de prefixo único que são
-apagadas no fim. Sem `DYNAMODB_SERVICE_URL`, eles aparecem como ignorados:
+Cenários BDD (Reqnroll, em português), com a mensageria ligada no transporte em memória:
+
+- `fila-execucao.feature`: a OS vai do `IniciarDiagnostico` à finalização, com reserva e baixa
+  de estoque e os eventos publicados; e o diagnóstico reaberto quando o orçamento falha.
+- `estoque-e-compensacao.feature`: peça sem saldo vira `DiagnosticoFalhou`, orçamento recusado
+  devolve a reserva e pagamento de uma OS sem diagnóstico vira `ExecucaoFalhou`.
 
 ```bash
 docker compose up -d dynamodb
-DYNAMODB_SERVICE_URL=http://localhost:8000 dotnet test tests/ExecucaoService.IntegrationTests
+DYNAMODB_SERVICE_URL=http://localhost:8000 \
+  dotnet test ExecucaoService.sln --settings coverlet.runsettings --collect:"XPlat Code Coverage" --results-directory coverage
+reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coverage/relatorio -reporttypes:"Cobertura;Html"
+python3 scripts/verificar-cobertura.py coverage/relatorio/Cobertura.xml 80
 ```
+
+Sem `DYNAMODB_SERVICE_URL`, os testes de integração aparecem como ignorados. A CI sobe o
+DynamoDB Local como container de serviço, exige **80% de cobertura de linhas** (hoje 92%) e roda
+o SonarCloud quando o secret `SONAR_TOKEN` estiver configurado; sem ele, a análise é pulada com
+um aviso.

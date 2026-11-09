@@ -22,7 +22,7 @@ namespace ExecucaoService.Testes.Compartilhado
         private readonly Dictionary<int, (string Nome, TipoEstoque Tipo, int Atual, int Reservada, int Minima, DateTime Data)> _itens = [];
         private int _contador;
 
-        public Task<int> ProximoIdAsync(CancellationToken ct = default) => Task.FromResult(++_contador);
+        public Task<int> ProximoIdAsync(CancellationToken ct = default) => Task.FromResult(Interlocked.Increment(ref _contador));
 
         public Task<Estoque?> ObterAsync(int id, CancellationToken ct = default) =>
             Task.FromResult(_itens.TryGetValue(id, out var e) ? Montar(id, e) : null);
@@ -108,7 +108,7 @@ namespace ExecucaoService.Testes.Compartilhado
         private readonly Dictionary<int, ServicoOficina> _servicos = [];
         private int _contador;
 
-        public Task<int> ProximoIdAsync(CancellationToken ct = default) => Task.FromResult(++_contador);
+        public Task<int> ProximoIdAsync(CancellationToken ct = default) => Task.FromResult(Interlocked.Increment(ref _contador));
 
         public Task<ServicoOficina?> ObterAsync(int id, CancellationToken ct = default) =>
             Task.FromResult(_servicos.GetValueOrDefault(id));

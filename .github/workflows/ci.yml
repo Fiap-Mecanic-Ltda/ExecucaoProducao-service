@@ -1,8 +1,13 @@
 name: Esteira de CI/CD - Execucao Service
 
-# Etapa atual: build, testes e build da imagem em todo PR e push nas branches de trabalho.
-# Próximas etapas do plano: cobertura mínima de 80%, SonarCloud, push da imagem no ECR e
-# disparo do deploy no repositório ExecucaoProducao-InfraKubernete (só na main).
+# Mesmo desenho da esteira do OS Service. Este repositório cuida só da APLICAÇÃO; os manifestos
+# do Kubernetes ficam em ExecucaoProducao-InfraKubernete e as tabelas em ExecucaoProducao-InfraSGBD.
+#
+# - PR e push em desenvolvimento, homologacao e main: build, testes (unidade, API, BDD e
+#   integração com o DynamoDB Local), cobertura mínima de 80% (falha o build), SonarCloud
+#   (quando houver SONAR_TOKEN) e build da imagem.
+# - Próxima etapa do plano: push da imagem no ECR e disparo do deploy, só na main e atrás da
+#   variável PUBLICAR_AWS.
 on:
   push:
     branches: [main, desenvolvimento, homologacao]
@@ -12,9 +17,11 @@ on:
 
 env:
   DOTNET_VERSION: "9.0.x"
+  COBERTURA_MINIMA: 80
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   build-and-test:
@@ -28,14 +35,48 @@ jobs:
           - 8000:8000
     env:
       DYNAMODB_SERVICE_URL: http://localhost:8000
+      # Sem o secret (ex.: PR de fork), o Sonar é pulado com aviso; o resto da esteira roda.
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION || 'fiap-mecanic-ltda' }}
+      SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY || 'Fiap-Mecanic-Ltda_ExecucaoProducao-service' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # o Sonar usa o histórico para saber o que é código novo
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Java (SonarScanner)
+        if: env.SONAR_TOKEN != ''
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Ferramentas
+        run: |
+          dotnet tool install --global dotnet-reportgenerator-globaltool --version 5.5.12
+          if [ -n "$SONAR_TOKEN" ]; then
+            dotnet tool install --global dotnet-sonarscanner --version 12.1.0
+          else
+            echo "::warning::SONAR_TOKEN não configurado: análise do SonarCloud pulada."
+          fi
+
+      - name: Início da análise do SonarCloud
+        if: env.SONAR_TOKEN != ''
+        run: >
+          dotnet sonarscanner begin
+          /k:"$SONAR_PROJECT_KEY"
+          /o:"$SONAR_ORGANIZATION"
+          /d:sonar.host.url="https://sonarcloud.io"
+          /d:sonar.token="$SONAR_TOKEN"
+          /d:sonar.cs.opencover.reportsPaths="coverage/**/coverage.opencover.xml"
+          /d:sonar.coverage.exclusions="tests/**"
+          /d:sonar.qualitygate.wait=true
 
       - name: Restore
         run: dotnet restore ExecucaoService.sln
@@ -43,17 +84,35 @@ jobs:
       - name: Build
         run: dotnet build ExecucaoService.sln --configuration Release --no-restore
 
-      - name: Testes automatizados
+      - name: Testes automatizados (unidade, API, BDD e integração)
         run: >
           dotnet test ExecucaoService.sln --configuration Release --no-build --verbosity normal
           --settings coverlet.runsettings --collect:"XPlat Code Coverage" --results-directory coverage
+
+      - name: Relatório de cobertura
+        if: always()
+        run: |
+          reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coverage/relatorio \
+            -reporttypes:"Cobertura;MarkdownSummaryGithub;Html"
+          cat coverage/relatorio/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Cobertura mínima de ${{ env.COBERTURA_MINIMA }}%
+        run: python3 scripts/verificar-cobertura.py coverage/relatorio/Cobertura.xml "$COBERTURA_MINIMA"
+
+      # Com sonar.qualitygate.wait, este passo falha se o quality gate reprovar.
+      - name: Fim da análise e quality gate do SonarCloud
+        if: env.SONAR_TOKEN != ''
+        run: dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
 
       - name: Publica os resultados de cobertura
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: cobertura
-          path: coverage/**/coverage.cobertura.xml
+          path: |
+            coverage/**/coverage.cobertura.xml
+            coverage/**/coverage.opencover.xml
+            coverage/relatorio/
           if-no-files-found: ignore
 
   docker-build:

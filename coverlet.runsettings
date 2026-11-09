@@ -5,7 +5,7 @@
       <DataCollector friendlyName="XPlat Code Coverage">
         <Configuration>
           <Format>cobertura,opencover</Format>
-          <Exclude>[*]*Migrations*,[*.Tests]*,[*.UnitTests]*</Exclude>
+          <Exclude>[*]*Migrations*,[*.Tests]*,[*.UnitTests]*,[*.IntegrationTests]*</Exclude>
           <ExcludeByFile>**/Migrations/**/*.cs,**/obj/**/*.cs,**/bin/**/*.cs</ExcludeByFile>
           <ExcludeByAttribute>GeneratedCodeAttribute,ExcludeFromCodeCoverageAttribute,MigrationAttribute</ExcludeByAttribute>
         </Configuration>
