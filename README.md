@@ -29,8 +29,10 @@ ExecucaoProducao-service/
 │   ├── ExecucaoService.Domain          # Entidades, enums e regras (status da execução)
 │   └── ExecucaoService.Infrastructure  # DynamoDB (tabelas execucao-*) e integrações
 ├── tests/
+│   ├── Compartilhado                   # Repositórios em memória usados pelos testes
 │   ├── ExecucaoService.UnitTests       # Domínio, aplicação e bootstrap (xUnit + Moq)
-│   └── ExecucaoService.API.Tests       # API em memória (WebApplicationFactory)
+│   ├── ExecucaoService.API.Tests       # API em memória (WebApplicationFactory)
+│   └── ExecucaoService.IntegrationTests # Repositórios contra o DynamoDB Local
 ├── docs/                               # Contratos da Saga e ADRs
 ├── docker-compose.yml                  # DynamoDB Local + RabbitMQ + API
 └── .github/workflows/ci.yml            # Build, testes e build da imagem
@@ -56,16 +58,49 @@ As portas não conflitam com o docker-compose do OS Service, então os dois sobe
 API aceitar os tokens do resto do sistema, `JWT_SECRET_KEY` precisa ser a mesma chave do
 MechanicLtda e da Lambda de autenticação.
 
+No compose, `DynamoDb__CriarTabelas=true` faz a API criar as tabelas que faltam ao subir. Na AWS
+as tabelas vêm do Terraform do `ExecucaoProducao-InfraSGBD` e essa opção fica desligada.
+
 Rodando sem Docker (com o DynamoDB Local do compose no ar):
 
 ```bash
 dotnet user-secrets set JWT_SECRET_KEY "<chave>" --project src/ExecucaoService.API
-DynamoDb__ServiceUrl=http://localhost:8000 AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local \
+DynamoDb__ServiceUrl=http://localhost:8000 DynamoDb__CriarTabelas=true AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local \
   dotnet run --project src/ExecucaoService.API     # http://localhost:5080/swagger
 ```
+
+## Rotas
+
+Todas exigem o JWT do MechanicLtda com papel `Administrador` ou `Funcionario`.
+
+| Rota | O que faz |
+|---|---|
+| `GET /api/estoque`, `GET /api/estoque/tipo/{Peca\|Insumo}`, `GET /api/estoque/{id}` | Consulta o estoque (atual, reservada, disponível, baixo estoque) |
+| `POST /api/estoque`, `PUT /api/estoque/{id}`, `DELETE /api/estoque/{id}` | Cadastro; item com reserva não é removido |
+| `PATCH /api/estoque/{id}/reposicao` | Entrada de unidades |
+| `GET/POST/PUT/DELETE /api/servicos-oficina`, `GET /api/servicos-oficina/ativos` | Catálogo de serviços da oficina |
+| `GET /api/execucao/fila?status=` | OS em andamento, na ordem de atendimento |
+| `GET /api/execucao/{ordemServicoId}` | OS com itens do diagnóstico e histórico |
+| `POST /api/execucao` | Manual: entrada na fila de diagnóstico (papel do comando IniciarDiagnostico) |
+| `PATCH /api/execucao/{id}/iniciar-diagnostico` | Mecânico assume o diagnóstico |
+| `POST /api/execucao/{id}/diagnostico` | Registra peças, insumos e serviços e reserva o estoque |
+| `PATCH /api/execucao/{id}/liberar-execucao` | Manual: pagamento confirmado (papel do comando IniciarExecucao), baixa o estoque |
+| `PATCH /api/execucao/{id}/iniciar`, `PATCH /api/execucao/{id}/finalizar` | Reparo |
+| `PATCH /api/execucao/{id}/cancelar` | Manual: devolve as reservas e cancela (papel do comando LiberarReservaEstoque) |
+
+Erros seguem o envelope `{ "success": false, "errors": [...] }`: regra de negócio e estoque
+insuficiente respondem 400, recurso inexistente 404 e conflito de gravação concorrente 409.
 
 ## Testes
 
 ```bash
 dotnet test ExecucaoService.sln --settings coverlet.runsettings --collect:"XPlat Code Coverage"
+```
+
+Os testes de integração rodam contra um DynamoDB Local, com tabelas de prefixo único que são
+apagadas no fim. Sem `DYNAMODB_SERVICE_URL`, eles aparecem como ignorados:
+
+```bash
+docker compose up -d dynamodb
+DYNAMODB_SERVICE_URL=http://localhost:8000 dotnet test tests/ExecucaoService.IntegrationTests
 ```

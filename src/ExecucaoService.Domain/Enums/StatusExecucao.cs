@@ -4,6 +4,7 @@ namespace ExecucaoService.Domain.Enums
     /// Status de uma OS dentro da Execução. São independentes dos status do OS Service: o OS
     /// Service só conhece o que a Execução publica nos eventos da Saga.
     /// </summary>
+    [System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter))]
     public enum StatusExecucao
     {
         /// <summary>Recebeu IniciarDiagnostico e espera um mecânico.</summary>
