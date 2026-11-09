@@ -24,6 +24,12 @@ namespace ExecucaoService.Testes.Compartilhado
 
         public Task<int> ProximoIdAsync(CancellationToken ct = default) => Task.FromResult(Interlocked.Increment(ref _contador));
 
+        public Task GarantirIdMinimoAsync(int ultimoId, CancellationToken ct = default)
+        {
+            _contador = Math.Max(_contador, ultimoId);
+            return Task.CompletedTask;
+        }
+
         public Task<Estoque?> ObterAsync(int id, CancellationToken ct = default) =>
             Task.FromResult(_itens.TryGetValue(id, out var e) ? Montar(id, e) : null);
 
@@ -109,6 +115,12 @@ namespace ExecucaoService.Testes.Compartilhado
         private int _contador;
 
         public Task<int> ProximoIdAsync(CancellationToken ct = default) => Task.FromResult(Interlocked.Increment(ref _contador));
+
+        public Task GarantirIdMinimoAsync(int ultimoId, CancellationToken ct = default)
+        {
+            _contador = Math.Max(_contador, ultimoId);
+            return Task.CompletedTask;
+        }
 
         public Task<ServicoOficina?> ObterAsync(int id, CancellationToken ct = default) =>
             Task.FromResult(_servicos.GetValueOrDefault(id));

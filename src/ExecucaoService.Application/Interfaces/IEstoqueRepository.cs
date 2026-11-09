@@ -10,6 +10,11 @@ namespace ExecucaoService.Application.Interfaces
     public interface IEstoqueRepository
     {
         Task<int> ProximoIdAsync(CancellationToken ct = default);
+        /// <summary>
+        /// Garante que o contador de ids nunca devolva um id menor ou igual a <paramref name="ultimoId"/>
+        /// (carga com os ids do MechanicLtda). Nunca diminui o contador.
+        /// </summary>
+        Task GarantirIdMinimoAsync(int ultimoId, CancellationToken ct = default);
         Task<Estoque?> ObterAsync(int id, CancellationToken ct = default);
         Task<IReadOnlyList<Estoque>> ListarAsync(TipoEstoque? tipo = null, CancellationToken ct = default);
         Task AdicionarAsync(Estoque estoque, CancellationToken ct = default);

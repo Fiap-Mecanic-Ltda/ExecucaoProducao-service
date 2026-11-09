@@ -26,6 +26,8 @@ namespace ExecucaoService.Infrastructure.Repositories
 
         public Task<int> ProximoIdAsync(CancellationToken ct = default) => Contador.ProximoAsync(_dynamo, _tabela, ct);
 
+        public Task GarantirIdMinimoAsync(int ultimoId, CancellationToken ct = default) => Contador.GarantirMinimoAsync(_dynamo, _tabela, ultimoId, ct);
+
         public async Task<ServicoOficina?> ObterAsync(int id, CancellationToken ct = default)
         {
             var resposta = await _dynamo.GetItemAsync(new GetItemRequest { TableName = _tabela, Key = Chave(id), ConsistentRead = true }, ct);
