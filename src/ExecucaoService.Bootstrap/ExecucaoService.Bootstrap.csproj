@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="MassTransit.RabbitMQ" Version="8.5.12" />
   </ItemGroup>
 
   <ItemGroup>

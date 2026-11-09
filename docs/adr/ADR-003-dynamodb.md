@@ -24,7 +24,7 @@ operação que exige cuidado é a reserva e a baixa de estoque, que precisam ser
    | `execucao-ordens` | `OS#<ordemServicoId>` / `HIST#<dataHora>` | Uma linha por mudança de status | — |
    | `execucao-estoque` | `ESTOQUE#<id>` | Nome, tipo, quantidade atual, reservada e mínima | GSI `tipo` |
    | `execucao-servicos` | `SERVICO#<id>` | Catálogo de serviços da oficina | — |
-   | `execucao-mensagens` | `<correlationId>#<mensagem>` | Mensagens processadas e a resposta publicada, TTL de 7 dias | — |
+   | `execucao-mensagens` | `<mensagem>#<correlationId>#<ordemServicoId>#<dataHora>` | Mensagens processadas e a resposta publicada, TTL de 7 dias (`expiraEm`) | — |
 
 3. Reserva e baixa de estoque usam **escrita condicional**
    (`quantidadeAtual - quantidadeReservada >= :n`), sem lock na aplicação.
@@ -47,6 +47,8 @@ operação que exige cuidado é a reserva e a baixa de estoque, que precisam ser
 - **Sem outbox transacional:** o MassTransit não tem outbox para DynamoDB. O serviço usa o outbox
   em memória do MassTransit (publica só depois que o consumidor termina sem erro) e consumidores
   idempotentes pela tabela `execucao-mensagens`. Uma mensagem repetida republica a mesma resposta
-  em vez de processar de novo, o que cobre a falha entre gravar e publicar.
+  em vez de processar de novo, o que cobre a falha entre gravar e publicar. A `dataHora` entra na
+  chave porque o OS Service reenvia `IniciarDiagnostico` com o mesmo `correlationId` depois de um
+  `OrcamentoFalhou`; uma entrega repetida tem o mesmo corpo, um reenvio tem outra `dataHora`.
 - Consultas novas exigem pensar no índice antes; relatórios ad hoc não são o uso deste banco.
 - Custo praticamente zero no volume da demonstração (nível gratuito do modo sob demanda).

@@ -68,6 +68,14 @@ namespace ExecucaoService.API.Controllers
         public async Task<IActionResult> Finalizar(int ordemServicoId, [FromBody] FinalizacaoViewModel? model, CancellationToken ct) =>
             Ok(await _app.FinalizarAsync(ordemServicoId, model?.Observacao, ct));
 
+        /// <summary>
+        /// O diagnóstico não pode ser feito (ex.: peça em falta): devolve as reservas, cancela a OS
+        /// na Execução e avisa a Saga com DiagnosticoFalhou (a OS volta para Recebida).
+        /// </summary>
+        [HttpPatch("{ordemServicoId:int}/falha-diagnostico")]
+        public async Task<IActionResult> FalhaDiagnostico(int ordemServicoId, [FromBody] FalhaDiagnosticoViewModel model, CancellationToken ct) =>
+            Ok(await _app.RegistrarFalhaDiagnosticoAsync(ordemServicoId, model.Motivo, ct));
+
         /// <summary>Manual: devolve as reservas e cancela (o que o comando LiberarReservaEstoque faz).</summary>
         [HttpPatch("{ordemServicoId:int}/cancelar")]
         public async Task<IActionResult> Cancelar(int ordemServicoId, [FromBody] CancelamentoViewModel? model, CancellationToken ct)

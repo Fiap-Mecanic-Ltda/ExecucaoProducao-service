@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Mensagens da Saga no namespace MechanicLtda.Contratos: o nome do exchange no RabbitMQ
+         vem do namespace e do nome do tipo (ex.: MechanicLtda.Contratos:GerarOrcamento).
+         Copia identica de OsService.Contratos (OS Service): mudar um campo aqui exige o mesmo PR
+         no OS Service e no Billing (docs/contratos-eventos.md). -->
+    <RootNamespace>MechanicLtda.Contratos</RootNamespace>
+  </PropertyGroup>
+
+</Project>

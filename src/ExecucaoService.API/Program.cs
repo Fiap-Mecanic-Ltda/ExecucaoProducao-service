@@ -37,7 +37,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerWithAuth();
 
 builder.Services.AddDatabase(builder.Configuration);
-builder.Services.AddDependencyInjection();
+builder.Services.AddDependencyInjection(builder.Configuration);
+builder.Services.AddMensageria(builder.Configuration);
 builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddAuthorization();
 

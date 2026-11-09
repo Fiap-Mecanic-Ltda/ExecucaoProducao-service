@@ -15,6 +15,8 @@ namespace ExecucaoService.UnitTests.Application
         private readonly EstoqueEmMemoria _estoque = new();
         private readonly ServicosEmMemoria _servicos = new();
         private readonly RelogioFixo _relogio = new();
+        private readonly PublicadorEmMemoria _publicador = new();
+        private readonly MonitoramentoEmMemoria _monitoramento = new();
         private readonly ExecucaoAppService _app;
 
         private const int Pastilha = 1;
@@ -23,7 +25,7 @@ namespace ExecucaoService.UnitTests.Application
 
         public ExecucaoAppServiceTests()
         {
-            _app = new ExecucaoAppService(_execucoes, _estoque, _servicos, _relogio);
+            _app = new ExecucaoAppService(_execucoes, _estoque, _servicos, _relogio, _publicador, _monitoramento);
 
             _estoque.AdicionarAsync(Estoque.Criar(Pastilha, "Pastilha", TipoEstoque.Peca, 5, 1, _relogio.UtcAgora)).Wait();
             _estoque.AdicionarAsync(Estoque.Criar(Fluido, "Fluido de freio", TipoEstoque.Insumo, 3, 1, _relogio.UtcAgora)).Wait();
@@ -320,6 +322,108 @@ namespace ExecucaoService.UnitTests.Application
         public async Task Fila_com_status_invalido_lanca_regra()
         {
             await Assert.ThrowsAsync<RegraDeNegocioException>(() => _app.ListarFilaAsync((StatusExecucao)99));
+        }
+    
+        [Fact]
+        public async Task Diagnostico_publica_DiagnosticoConcluido_com_os_itens()
+        {
+            await ComDiagnosticoAsync();
+
+            var evento = Assert.Single(_publicador.DoTipo<MechanicLtda.Contratos.DiagnosticoConcluido>());
+            Assert.Equal(Saga, evento.CorrelationId);
+            Assert.Equal(42, evento.OrdemServicoId);
+            Assert.Equal(_relogio.UtcAgora, evento.DataHora);
+            Assert.Equal("Discos ok", evento.Observacao);
+            Assert.Equal(["Peca", "Insumo", "Servico"], evento.Itens.Select(i => i.Tipo));
+            Assert.Equal(TrocaPastilhas, evento.Itens[2].ServicoOficinaId);
+            Assert.Contains("42:DiagnosticoConcluido", _monitoramento.Passos);
+        }
+
+        [Fact]
+        public async Task Diagnostico_sem_saldo_nao_publica_nada()
+        {
+            await _app.ReceberAsync(42, Saga, 7, 3, null);
+
+            await Assert.ThrowsAsync<EstoqueInsuficienteException>(() => _app.RegistrarDiagnosticoAsync(42, Diagnostico(pastilhas: 6)));
+
+            Assert.Empty(_publicador.Publicados);
+        }
+
+        [Fact]
+        public async Task Reparo_publica_ExecucaoIniciada_e_ExecucaoFinalizada()
+        {
+            await ComDiagnosticoAsync();
+            await _app.LiberarParaExecucaoAsync(42);
+            var inicio = _relogio.UtcAgora;
+
+            await _app.IniciarReparoAsync(42);
+            _relogio.Avancar(TimeSpan.FromMinutes(40));
+            await _app.FinalizarAsync(42, null);
+
+            Assert.Equal(inicio, Assert.Single(_publicador.DoTipo<MechanicLtda.Contratos.ExecucaoIniciada>()).DataInicio);
+            var fim = Assert.Single(_publicador.DoTipo<MechanicLtda.Contratos.ExecucaoFinalizada>());
+            Assert.Equal(inicio, fim.DataInicio);
+            Assert.Equal(_relogio.UtcAgora, fim.DataFim);
+        }
+
+        [Fact]
+        public async Task Falha_de_diagnostico_cancela_devolve_e_publica()
+        {
+            await _app.ReceberAsync(42, Saga, 7, 3, null);
+
+            var dto = await _app.RegistrarFalhaDiagnosticoAsync(42, "Peca fora de linha");
+
+            Assert.Equal(StatusExecucao.Cancelada, dto.Status);
+            Assert.Equal("Peca fora de linha", Assert.Single(_publicador.DoTipo<MechanicLtda.Contratos.DiagnosticoFalhou>()).Motivo);
+            Assert.Contains("42:DiagnosticoFalhou", _monitoramento.Falhas);
+        }
+
+        [Fact]
+        public async Task Falha_de_diagnostico_depois_de_concluido_lanca_regra()
+        {
+            await ComDiagnosticoAsync();
+
+            await Assert.ThrowsAsync<RegraDeNegocioException>(() => _app.RegistrarFalhaDiagnosticoAsync(42, "tarde"));
+            Assert.Empty(_publicador.DoTipo<MechanicLtda.Contratos.DiagnosticoFalhou>());
+        }
+
+        [Fact]
+        public async Task Diagnostico_automatico_usa_o_catalogo_e_as_pecas_citadas()
+        {
+            await _app.ReceberAsync(42, Saga, 7, 3, "Trocar pastilha e completar fluido de freio");
+
+            var dto = await _app.DiagnosticarAutomaticamenteAsync(42, 50m);
+
+            Assert.Equal(StatusExecucao.DiagnosticoConcluido, dto.Status);
+            Assert.Equal(["Troca de pastilhas", "Pastilha", "Fluido de freio"], dto.Itens.Select(i => i.Descricao));
+            Assert.Equal(120m + 50m + 50m, dto.ValorTotalItens);
+            Assert.Equal(4, await Disponivel(Pastilha));
+            Assert.Single(_publicador.DoTipo<MechanicLtda.Contratos.DiagnosticoConcluido>());
+        }
+
+        [Fact]
+        public async Task Diagnostico_automatico_sem_saldo_vira_falha()
+        {
+            await _estoque.AdicionarAsync(Estoque.Criar(3, "Amortecedor", TipoEstoque.Peca, 0, 1, _relogio.UtcAgora));
+            await _app.ReceberAsync(42, Saga, 7, 3, "Amortecedor batendo");
+
+            var dto = await _app.DiagnosticarAutomaticamenteAsync(42, 50m);
+
+            Assert.Equal(StatusExecucao.Cancelada, dto.Status);
+            Assert.Contains("insuficiente", Assert.Single(_publicador.DoTipo<MechanicLtda.Contratos.DiagnosticoFalhou>()).Motivo);
+        }
+
+        [Fact]
+        public async Task Diagnostico_automatico_sem_servico_ativo_vira_falha()
+        {
+            var servico = (await _servicos.ObterAsync(TrocaPastilhas))!;
+            servico.Atualizar(servico.Nome, null, servico.ValorBase, false, _relogio.UtcAgora);
+            await _app.ReceberAsync(42, Saga, 7, 3, null);
+
+            var dto = await _app.DiagnosticarAutomaticamenteAsync(42, 50m);
+
+            Assert.Equal(StatusExecucao.Cancelada, dto.Status);
+            Assert.Single(_publicador.DoTipo<MechanicLtda.Contratos.DiagnosticoFalhou>());
         }
     }
 }
