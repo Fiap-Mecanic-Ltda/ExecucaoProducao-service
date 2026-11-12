@@ -49,8 +49,7 @@ Nas tabelas abaixo esses três campos ficam implícitos.
 | Mensagem | Para | Campos | Respostas esperadas |
 |---|---|---|---|
 | `IniciarDiagnostico` | Execução | `clienteId`, `veiculoId`, `descricaoProblema` | `DiagnosticoConcluido` ou `DiagnosticoFalhou` |
-| `GerarOrcamento` | Billing | `clienteId`, `nomeCliente`, `emailCliente`, `itens: ItemOrdemServico[]` | `OrcamentoGerado` ou `OrcamentoFalhou`; depois `OrcamentoAprovado` ou `OrcamentoRecusado` |
-| `SolicitarPagamento` | Billing | `orcamentoId`, `valorTotal` | `PagamentoConfirmado` ou `PagamentoFalhou` |
+| `GerarOrcamento` | Billing | `clienteId`, `nomeCliente`, `emailCliente`, `itens: ItemOrdemServico[]` | `OrcamentoGerado` ou `OrcamentoFalhou`; depois `PagamentoConfirmado` (aprovação paga) ou `OrcamentoRecusado` |
 | `IniciarExecucao` | Execução | `orcamentoId`, `itens: ItemOrdemServico[]` | `ExecucaoIniciada`, depois `ExecucaoFinalizada`; ou `ExecucaoFalhou` |
 | `CancelarOrcamento` | Billing | `orcamentoId`, `motivo` | `OrcamentoCancelado` |
 | `EstornarPagamento` | Billing | `pagamentoId`, `motivo` | `PagamentoEstornado` |
@@ -59,6 +58,23 @@ Nas tabelas abaixo esses três campos ficam implícitos.
 `nomeCliente` e `emailCliente` vão no `GerarOrcamento` porque o Billing envia o e-mail de
 aprovação e não deve consultar o banco de clientes. O OS Service obtém esses dados por REST na
 abertura da OS.
+
+## Regra do pagamento
+
+**O pagamento é feito com a OS em `AguardandoAprovacao`.** Não existe comando de cobrança do OS
+Service: o cliente aprova o orçamento pagando, pelo Web, direto no Billing (`POST /api/pagamento`).
+O `PagamentoConfirmado` é a aprovação e leva a OS para `EmExecucao`.
+
+- O Billing só aceita pagamento de orçamento **em aberto**: gerado (`OrcamentoGerado` enviado) e
+  ainda não recusado nem cancelado. Orçamento em aberto equivale a OS em `AguardandoAprovacao`;
+  quem quiser conferir o status pode assinar `OrdemServicoStatusAlterado`.
+- Pagamento recusado (`PagamentoFalhou`) não cancela nada: a OS segue em `AguardandoAprovacao` e o
+  cliente pode tentar de novo até o prazo de aprovação.
+- `PagamentoConfirmado` que chega com a OS fora de `AguardandoAprovacao` não é aceito: antes do
+  orçamento é ignorado; durante uma compensação (ex.: prazo vencido) o OS Service pede
+  `EstornarPagamento`.
+- `OrcamentoAprovado` sem pagamento é opcional e só informativo: a OS não muda de status.
+- A Execução não muda: só recebe `IniciarExecucao` depois do pagamento confirmado.
 
 ## Eventos da Execução
 
@@ -76,10 +92,10 @@ abertura da OS.
 |---|---|---|
 | `OrcamentoGerado` | `orcamentoId`, `valorTotal`, `validade` | Vai para `AguardandoAprovacao` |
 | `OrcamentoFalhou` | `motivo` | Volta para `EmDiagnostico` e reenvia `IniciarDiagnostico` para a Execução refazer o diagnóstico |
-| `OrcamentoAprovado` | `orcamentoId` | Vai para `AguardandoPagamento`; envia `SolicitarPagamento` |
+| `OrcamentoAprovado` | `orcamentoId` | Opcional, só informativo: a OS continua em `AguardandoAprovacao` |
 | `OrcamentoRecusado` | `orcamentoId`, `motivo?` | Compensação: `LiberarReservaEstoque`; vai para `Cancelada` |
-| `PagamentoConfirmado` | `pagamentoId`, `valor`, `meioPagamento` | Vai para `EmExecucao`; envia `IniciarExecucao` |
-| `PagamentoFalhou` | `motivo` | Compensação: `CancelarOrcamento` + `LiberarReservaEstoque`; vai para `Compensando` |
+| `PagamentoConfirmado` | `pagamentoId`, `valor`, `meioPagamento` | Aceito só em `AguardandoAprovacao`: vale como aprovação, vai para `EmExecucao` e envia `IniciarExecucao`. Durante uma compensação, pede `EstornarPagamento` |
+| `PagamentoFalhou` | `motivo` | Só registra; a OS continua em `AguardandoAprovacao` para nova tentativa |
 | `OrcamentoCancelado` | `orcamentoId` | Parte da compensação |
 | `PagamentoEstornado` | `pagamentoId` | Parte da compensação |
 
@@ -117,7 +133,7 @@ A compensação termina (status `Cancelada`) quando todas as confirmações pedi
 | 5 | `Finalizada` | Já existia |
 | 6 | `Entregue` | Já existia |
 | 7 | `AguardandoOrcamento` | Novo: diagnóstico concluído, orçamento sendo gerado |
-| 8 | `AguardandoPagamento` | Novo: orçamento aprovado, pagamento pendente |
+| 8 | — | Reservado, não usar (era `AguardandoPagamento`; o pagamento agora é feito em `AguardandoAprovacao`) |
 | 9 | `Compensando` | Novo: falha em andamento, aguardando confirmações de compensação |
 | 10 | `Cancelada` | Novo: estado final de uma Saga compensada ou recusada |
 

@@ -20,13 +20,6 @@ namespace MechanicLtda.Contratos
         public IReadOnlyList<ItemOrdemServico> Itens { get; init; } = [];
     }
 
-    /// <summary>Para o Billing: cobrar o orçamento aprovado.</summary>
-    public record SolicitarPagamento : MensagemSaga
-    {
-        public int OrcamentoId { get; init; }
-        public decimal ValorTotal { get; init; }
-    }
-
     /// <summary>Para a Execução: executar o reparo (pagamento confirmado).</summary>
     public record IniciarExecucao : MensagemSaga
     {
