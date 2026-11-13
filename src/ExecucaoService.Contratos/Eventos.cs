@@ -43,6 +43,10 @@ namespace MechanicLtda.Contratos
         public string Motivo { get; init; } = string.Empty;
     }
 
+    /// <summary>
+    /// Opcional e só informativo: a aprovação que conta é o pagamento confirmado, feito com a
+    /// OS em Aguardando Aprovação. A OS não muda de status com este evento.
+    /// </summary>
     public record OrcamentoAprovado : MensagemSaga
     {
         public int OrcamentoId { get; init; }
@@ -54,6 +58,10 @@ namespace MechanicLtda.Contratos
         public string? Motivo { get; init; }
     }
 
+    /// <summary>
+    /// Pagamento do orçamento aprovado no Billing. Só é aceito com a OS em Aguardando Aprovação,
+    /// e vale como a aprovação do cliente: a OS vai para Execução.
+    /// </summary>
     public record PagamentoConfirmado : MensagemSaga
     {
         public int PagamentoId { get; init; }
@@ -61,6 +69,7 @@ namespace MechanicLtda.Contratos
         public string? MeioPagamento { get; init; }
     }
 
+    /// <summary>Tentativa de pagamento recusada. Não cancela a OS: o cliente pode pagar de novo até o prazo de aprovação.</summary>
     public record PagamentoFalhou : MensagemSaga
     {
         public string Motivo { get; init; } = string.Empty;
