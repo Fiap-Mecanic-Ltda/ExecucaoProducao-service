@@ -1,5 +1,6 @@
 using ExecucaoService.Domain.Enums;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace ExecucaoService.API.ViewModels
 {
@@ -8,7 +9,8 @@ namespace ExecucaoService.API.ViewModels
         [Required, MaxLength(200)]
         public string Nome { get; set; } = string.Empty;
 
-        [Required]
+        [JsonRequired]
+        [EnumDataType(typeof(TipoEstoque))]
         public TipoEstoque Tipo { get; set; }
 
         [Range(0, int.MaxValue)]
@@ -23,7 +25,8 @@ namespace ExecucaoService.API.ViewModels
         [Required, MaxLength(200)]
         public string Nome { get; set; } = string.Empty;
 
-        [Required]
+        [JsonRequired]
+        [EnumDataType(typeof(TipoEstoque))]
         public TipoEstoque Tipo { get; set; }
 
         [Range(0, int.MaxValue)]

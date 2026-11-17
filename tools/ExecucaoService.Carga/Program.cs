@@ -28,7 +28,7 @@ var urlMonolito = configuracao["MONOLITO_URL"];
 var token       = configuracao["MONOLITO_TOKEN"];
 if (string.IsNullOrWhiteSpace(urlMonolito) || string.IsNullOrWhiteSpace(token))
 {
-    Console.Error.WriteLine("Informe MONOLITO_URL (ex.: http://localhost:8080) e MONOLITO_TOKEN (JWT de Administrador ou Funcionário).");
+    await Console.Error.WriteLineAsync("Informe MONOLITO_URL (ex.: http://localhost:8080) e MONOLITO_TOKEN (JWT de Administrador ou Funcionário).");
     return 2;
 }
 
@@ -60,7 +60,7 @@ try
 }
 catch (ResourceNotFoundException)
 {
-    Console.Error.WriteLine("As tabelas da Execução não existem com esse prefixo. Na AWS, aplique o ExecucaoProducao-InfraSGBD; " +
+    await Console.Error.WriteLineAsync("As tabelas da Execução não existem com esse prefixo. Na AWS, aplique o ExecucaoProducao-InfraSGBD; " +
                             "no DynamoDB Local, suba a API uma vez ou rode com DynamoDb__CriarTabelas=true.");
     return 2;
 }
@@ -68,6 +68,6 @@ catch (ResourceNotFoundException)
 Console.WriteLine($"Estoque: {resultado.EstoqueCriados} criado(s), {resultado.EstoqueJaExistentes} já existia(m).");
 Console.WriteLine($"Serviços: {resultado.ServicosCriados} criado(s), {resultado.ServicosJaExistentes} já existia(m).");
 foreach (var rejeitado in resultado.Rejeitados)
-    Console.Error.WriteLine($"Rejeitado: {rejeitado}");
+    await Console.Error.WriteLineAsync($"Rejeitado: {rejeitado}");
 
 return resultado.Rejeitados.Count == 0 ? 0 : 1;
