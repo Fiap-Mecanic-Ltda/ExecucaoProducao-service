@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="MassTransit.RabbitMQ" Version="8.5.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ExecucaoService.Application\ExecucaoService.Application.csproj" />
+    <ProjectReference Include="..\ExecucaoService.Infrastructure\ExecucaoService.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>
