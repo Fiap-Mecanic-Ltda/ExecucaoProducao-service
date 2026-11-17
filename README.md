@@ -235,4 +235,4 @@ A coleção do Postman também passou contra a API local: 31 requisições e 55 
 Sem `DYNAMODB_SERVICE_URL`, os testes de integração aparecem como ignorados. A CI sobe o
 DynamoDB Local como container de serviço, exige **80% de cobertura de linhas** (hoje 92%) e roda
 o SonarCloud quando o secret `SONAR_TOKEN` estiver configurado; sem ele, a análise é pulada com
-um aviso.
+um aviso. No PR, a esteira espera o quality gate e falha se ele reprovar. No push na `main`, quem confere o gate é o `scripts/quality-gate-sonar.py`: ele falha com `ERROR` e só avisa quando o gate volta `NONE` ou não está acessível. No plano gratuito, o SonarCloud nem sempre calcula o gate na `main`, e isso travava a publicação da imagem.
