@@ -1,0 +1,17 @@
+**/.git
+**/.github
+**/.vs
+**/.vscode
+**/bin
+**/obj
+**/TestResults
+**/.env
+**/appsettings.*.json
+!**/appsettings.json
+coverage/
+coverage-report/
+tests/
+docs/
+docker-compose*.yml
+LICENSE
+README.md
