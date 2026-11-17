@@ -86,7 +86,7 @@ jobs:
           /d:sonar.token="$SONAR_TOKEN"
           /d:sonar.cs.opencover.reportsPaths="coverage/**/coverage.opencover.xml"
           /d:sonar.coverage.exclusions="tests/**"
-          /d:sonar.qualitygate.wait=${{ github.ref == 'refs/heads/main' && 'true' || 'false' }}
+          /d:sonar.qualitygate.wait=true
 
       - name: Restore
         run: dotnet restore ExecucaoService.sln
@@ -109,9 +109,7 @@ jobs:
       - name: Cobertura mínima de ${{ env.COBERTURA_MINIMA }}%
         run: python3 scripts/verificar-cobertura.py coverage/relatorio/Cobertura.xml "$COBERTURA_MINIMA"
 
-      # Na main, este passo espera o quality gate e falha se ele reprovar. Nas demais
-      # branches a analise e enviada sem esperar: o plano gratuito do SonarCloud
-      # (projeto privado) nao devolve o status do gate fora da branch principal.
+      # Com sonar.qualitygate.wait, este passo falha se o quality gate reprovar.
       - name: Fim da análise e quality gate do SonarCloud
         if: env.SONAR_TOKEN != ''
         run: dotnet sonarscanner end /d:sonar.token="$SONAR_TOKEN"
